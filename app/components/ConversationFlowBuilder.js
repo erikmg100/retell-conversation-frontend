@@ -214,3 +214,108 @@ export default function ConversationFlowBuilder() {
           <div className={styles.nodesContainer}>
             {nodes.map((node) => (
               <DraggableComponent
+                key={node.id}
+                defaultPosition={{ x: node.position.x, y: node.position.y }}
+                onStop={(e, data) => handleNodeDrag(node.id, data)}
+                bounds="parent"
+              >
+                <div
+                  className={`${styles.node} ${styles[node.type]} ${selectedNode === node.id ? styles.selected : ''}`}
+                  onClick={() => setSelectedNode(node.id)}
+                >
+                  <div className={styles.nodeHeader}>
+                    <span className={styles.nodeType}>{node.type.replace('-', ' ')}</span>
+                    {node.id !== 'welcome' && (
+                      <button
+                        className={styles.deleteNode}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteNode(node.id);
+                        }}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    value={node.title}
+                    onChange={(e) => updateNode(node.id, 'title', e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    className={styles.nodeTitle}
+                  />
+                  <textarea
+                    value={node.description}
+                    onChange={(e) => updateNode(node.id, 'description', e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    className={styles.nodeDescription}
+                  />
+                </div>
+              </DraggableComponent>
+            ))}
+
+            <svg className={styles.connections}>
+              {nodes
+                .filter((n) => n.type === 'caller-type')
+                .map((targetNode) => {
+                  const welcomeNode = nodes.find((n) => n.id === 'welcome');
+                  if (!welcomeNode) return null;
+                  return (
+                    <line
+                      key={`welcome-${targetNode.id}`}
+                      x1={welcomeNode.position.x + 150}
+                      y1={welcomeNode.position.y + 100}
+                      x2={targetNode.position.x + 150}
+                      y2={targetNode.position.y}
+                      stroke="rgba(102, 126, 234, 0.6)"
+                      strokeWidth="3"
+                      strokeDasharray="5,5"
+                    />
+                  );
+                })}
+            </svg>
+          </div>
+        </div>
+
+        <div className={styles.voiceControlsTranscript}>
+          <div className={styles.voiceControls}>
+            <h3>Voice Call</h3>
+            <div
+              className={`${styles.callButton} ${isCallActive ? styles.active : ''}`}
+              onClick={isCallActive ? stopCall : startCall}
+            >
+              {isCallActive ? '🔴' : '🎤'}
+            </div>
+            <button
+              onClick={isCallActive ? stopCall : startCall}
+              className={`${styles.btn} ${styles.btnCall} ${isCallActive ? styles.end : styles.start}`}
+            >
+              {isCallActive ? 'End Call' : 'Start Voice Call'}
+            </button>
+            <div className={styles.callStatus}>{callStatus}</div>
+          </div>
+
+          <div className={styles.transcript}>
+            <h3>Live Transcript</h3>
+            <div className={styles.transcriptContent}>
+              {transcript ? (
+                transcript.split('\n\n').map((line, index) => (
+                  <div
+                    key={index}
+                    className={`${styles.transcriptLine} ${line.startsWith('🤖 Agent') ? styles.agent : styles.user}`}
+                  >
+                    {line}
+                  </div>
+                ))
+              ) : (
+                <div className={styles.transcriptPlaceholder}>
+                  Your conversation transcript will appear here...
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
