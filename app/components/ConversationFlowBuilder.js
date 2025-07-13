@@ -1,9 +1,23 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { RetellWebClient } from 'retell-client-js-sdk';
-import Draggable from 'react-draggable';
 import styles from './ConversationFlowBuilder.module.css';
+
+const DraggableComponent = ({ children, ...props }) => {
+  const [isMounted, setIsMounted] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    setIsMounted(true);
+    return () => setIsMounted(false);
+  }, []);
+
+  if (!isMounted) return <div ref={ref}>{children}</div>;
+
+  const Draggable = require('react-draggable').default;
+  return <Draggable {...props}>{children}</Draggable>;
+};
 
 export default function ConversationFlowBuilder() {
   const [isCallActive, setIsCallActive] = useState(false);
@@ -199,7 +213,7 @@ export default function ConversationFlowBuilder() {
 
           <div className={styles.nodesContainer}>
             {nodes.map((node) => (
-              <Draggable
+              <DraggableComponent
                 key={node.id}
                 defaultPosition={{ x: node.position.x, y: node.position.y }}
                 onStop={(e, data) => handleNodeDrag(node.id, data)}
@@ -237,7 +251,7 @@ export default function ConversationFlowBuilder() {
                     className={styles.nodeDescription}
                   />
                 </div>
-              </Draggable>
+              </DraggableComponent>
             ))}
 
             <svg className={styles.connections}>
