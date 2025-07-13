@@ -1,556 +1,303 @@
-'use client';
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap');
 
-import React, { useState, useEffect, useRef } from 'react';
-import { RetellWebClient } from 'retell-client-js-sdk';
+* {
+  font-family: 'Manrope', sans-serif;
+  box-sizing: border-box;
+}
 
-export default function ConversationFlowBuilder() {
-  // Voice call state
-  const [isCallActive, setIsCallActive] = useState(false);
-  const [transcript, setTranscript] = useState('');
-  const [callStatus, setCallStatus] = useState('Ready to start voice call');
-  const [retellWebClient, setRetellWebClient] = useState(null);
-  
-  // Flow builder state
-  const [selectedNode, setSelectedNode] = useState(null);
-  const [nodes, setNodes] = useState([
-    {
-      id: 'welcome',
-      type: 'welcome',
-      title: 'Welcome Message',
-      description: 'Hello! How can we help you today?',
-      position: { x: 50, y: 20 }
-    },
-    {
-      id: 'new-caller',
-      type: 'caller-type',
-      title: 'New Caller',
-      description: 'I see you\'re a new caller. Let me help you get started.',
-      position: { x: 10, y: 180 }
-    },
-    {
-      id: 'existing-client',
-      type: 'caller-type', 
-      title: 'Existing Client',
-      description: 'Welcome back! How can I help you today?',
-      position: { x: 50, y: 180 }
-    },
-    {
-      id: 'other',
-      type: 'caller-type',
-      title: 'Other',
-      description: 'I\'m here to help. Could you tell me more about what you need?',
-      position: { x: 90, y: 180 }
-    }
-  ]);
+.container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px;
+}
 
-  // Initialize Retell client
-  useEffect(() => {
-    const client = new RetellWebClient();
-    setRetellWebClient(client);
+.header {
+  text-align: center;
+  margin-bottom: 30px;
+  color: white;
+}
 
-    client.on("call_started", () => {
-      console.log("call started");
-      setCallStatus('Call active - Speak now!');
-      setIsCallActive(true);
-    });
+.header h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
 
-    client.on("call_ended", () => {
-      console.log("call ended");
-      setCallStatus('Call ended');
-      setIsCallActive(false);
-    });
+.header p {
+  font-size: 1.1rem;
+  opacity: 0.9;
+}
 
-    client.on("update", (update) => {
-      console.log("Received update:", update);
-      
-      if (update.transcript) {
-        let transcriptText = '';
-        if (typeof update.transcript === 'string') {
-          transcriptText = update.transcript;
-        } else if (Array.isArray(update.transcript)) {
-          transcriptText = update.transcript
-            .map(item => `${item.role === 'agent' ? '🤖 Agent' : '👤 You'}: ${item.content}`)
-            .join('\n\n');
-        }
-        setTranscript(transcriptText);
-      }
-    });
+.main-content {
+  display: flex;
+  gap: 30px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
 
-    client.on("error", (error) => {
-      console.error("Retell error:", error);
-      setCallStatus(`Error: ${error.message || 'Unknown error'}`);
-    });
+.flow-canvas {
+  flex: 2;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 15px;
+  padding: 20px;
+  min-height: 600px;
+  position: relative;
+  background-image: radial-gradient(circle at 25px 25px, rgba(102, 126, 234, 0.1) 2px, transparent 0);
+  background-size: 50px 50px;
+}
 
-    return () => {
-      client.removeAllListeners();
-    };
-  }, []);
+.toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
 
-  const startCall = async () => {
-    try {
-      setCallStatus('Requesting microphone access...');
-      
-      // Request microphone permission
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach(track => track.stop());
-      
-      setCallStatus('Creating call...');
-      
-      // Collect flow data
-      const flowData = {
-        nodes: nodes,
-        connections: [
-          { parent: 'welcome', children: ['new-caller', 'existing-client', 'other'] }
-        ]
-      };
+.btn {
+  border: none;
+  border-radius: 10px;
+  padding: 12px 20px;
+  cursor: pointer;
+  font-weight: 600;
+  color: white;
+  transition: transform 0.2s ease;
+}
 
-      // Call your working backend
-      const response = await fetch('https://retell-flow-backend.vercel.app/create-web-call', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ flowData }),
-      });
+.btn:hover {
+  transform: translateY(-2px);
+}
 
-      const data = await response.json();
-      
-      if (!data.success || !data.access_token) {
-        throw new Error(data.error || 'Failed to get access token');
-      }
+.btn-caller-type {
+  background: linear-gradient(135deg, #f093fb, #f5576c);
+}
 
-      if (retellWebClient) {
-        await retellWebClient.startCall({
-          accessToken: data.access_token,
-          sampleRate: 24000,
-          captureDeviceId: "default",
-          playbackDeviceId: "default"
-        });
-      }
+.btn-response {
+  background: linear-gradient(135deg, #4facfe, #00f2fe);
+}
 
-      setCallStatus('Call starting...');
-    } catch (error) {
-      console.error('Error starting call:', error);
-      if (error.name === 'NotAllowedError') {
-        setCallStatus('Microphone access denied. Please allow microphone access and try again.');
-      } else {
-        setCallStatus(`Error: ${error.message}`);
-      }
-    }
-  };
+.btn-export {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+}
 
-  const stopCall = async () => {
-    try {
-      if (retellWebClient) {
-        await retellWebClient.stopCall();
-      }
-      setCallStatus('Call stopped');
-      setIsCallActive(false);
-    } catch (error) {
-      console.error('Error stopping call:', error);
-    }
-  };
+.nodes-container {
+  position: relative;
+  min-height: 500px;
+}
 
-  const updateNode = (nodeId, field, value) => {
-    setNodes(nodes.map(node => 
-      node.id === nodeId 
-        ? { ...node, [field]: value }
-        : node
-    ));
-  };
+.node {
+  position: absolute;
+  border-radius: 15px;
+  padding: 20px;
+  min-width: 200px;
+  max-width: 300px;
+  cursor: move;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s ease;
+  color: white;
+}
 
-  const addNode = (type) => {
-    const newNode = {
-      id: `node-${Date.now()}`,
-      type: type,
-      title: type === 'caller-type' ? 'New Caller Type' : 'New Response',
-      description: 'Enter your message here...',
-      position: { x: 50, y: 350 }
-    };
-    setNodes([...nodes, newNode]);
-  };
+.node.welcome {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+}
 
-  const deleteNode = (nodeId) => {
-    if (nodeId === 'welcome') return; // Can't delete welcome node
-    setNodes(nodes.filter(node => node.id !== nodeId));
-    if (selectedNode === nodeId) setSelectedNode(null);
-  };
+.node.caller-type {
+  background: linear-gradient(135deg, #f093fb, #f5576c);
+}
 
-  const exportFlow = () => {
-    const flowData = { nodes, connections: [] };
-    const dataStr = JSON.stringify(flowData, null, 2);
-    const dataBlob = new Blob([dataStr], {type: 'application/json'});
-    const url = URL.createObjectURL(dataBlob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'conversation-flow.json';
-    link.click();
-  };
+.node.response {
+  background: linear-gradient(135deg, #4facfe, #00f2fe);
+}
 
-  return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      padding: '20px',
-      fontFamily: "'Inter', sans-serif"
-    }}>
-      {/* Header */}
-      <div style={{
-        textAlign: 'center',
-        marginBottom: '30px',
-        color: 'white'
-      }}>
-        <h1 style={{ fontSize: '2.5rem', fontWeight: '700', marginBottom: '10px' }}>
-          Conversation Flow Builder
-        </h1>
-        <p style={{ fontSize: '1.1rem', opacity: '0.9' }}>
-          Design your conversational workflow with voice AI integration
-        </p>
-      </div>
+.node.selected {
+  box-shadow: 0 0 0 3px rgba(118, 75, 162, 0.5);
+  border: 2px solid #764ba2;
+}
 
-      {/* Main Content */}
-      <div style={{
-        display: 'flex',
-        gap: '30px',
-        maxWidth: '1400px',
-        margin: '0 auto'
-      }}>
-        
-        {/* Flow Canvas */}
-        <div style={{
-          flex: '2',
-          background: 'rgba(255, 255, 255, 0.95)',
-          borderRadius: '15px',
-          padding: '20px',
-          minHeight: '600px',
-          position: 'relative',
-          backgroundImage: 'radial-gradient(circle at 25px 25px, rgba(102, 126, 234, 0.1) 2px, transparent 0)',
-          backgroundSize: '50px 50px'
-        }}>
-          
-          {/* Toolbar */}
-          <div style={{
-            display: 'flex',
-            gap: '10px',
-            marginBottom: '20px',
-            flexWrap: 'wrap'
-          }}>
-            <button 
-              onClick={() => addNode('caller-type')}
-              style={{
-                background: 'linear-gradient(135deg, #f093fb, #f5576c)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '10px',
-                padding: '12px 20px',
-                cursor: 'pointer',
-                fontWeight: '600'
-              }}
-            >
-              + Add Caller Type
-            </button>
-            <button 
-              onClick={() => addNode('response')}
-              style={{
-                background: 'linear-gradient(135deg, #4facfe, #00f2fe)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '10px',
-                padding: '12px 20px',
-                cursor: 'pointer',
-                fontWeight: '600'
-              }}
-            >
-              + Add Response
-            </button>
-            <button 
-              onClick={exportFlow}
-              style={{
-                background: 'linear-gradient(135deg, #667eea, #764ba2)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '10px',
-                padding: '12px 20px',
-                cursor: 'pointer',
-                fontWeight: '600'
-              }}
-            >
-              📥 Export
-            </button>
-          </div>
+.node-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
 
-          {/* Flow Nodes */}
-          <div style={{ position: 'relative', minHeight: '500px' }}>
-            {nodes.map(node => (
-              <div
-                key={node.id}
-                onClick={() => setSelectedNode(node.id)}
-                style={{
-                  position: 'absolute',
-                  left: `${node.position.x}%`,
-                  top: `${node.position.y}px`,
-                  background: node.type === 'welcome' 
-                    ? 'linear-gradient(135deg, #667eea, #764ba2)'
-                    : node.type === 'caller-type'
-                    ? 'linear-gradient(135deg, #f093fb, #f5576c)' 
-                    : 'linear-gradient(135deg, #4facfe, #00f2fe)',
-                  color: 'white',
-                  borderRadius: '15px',
-                  padding: '20px',
-                  minWidth: '200px',
-                  maxWidth: '300px',
-                  cursor: 'pointer',
-                  boxShadow: selectedNode === node.id 
-                    ? '0 0 0 3px rgba(118, 75, 162, 0.5)'
-                    : '0 8px 25px rgba(0, 0, 0, 0.15)',
-                  transition: 'all 0.3s ease',
-                  border: selectedNode === node.id ? '2px solid #764ba2' : '2px solid transparent'
-                }}
-              >
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: '15px'
-                }}>
-                  <span style={{
-                    fontSize: '0.8rem',
-                    fontWeight: '600',
-                    textTransform: 'uppercase',
-                    opacity: '0.8'
-                  }}>
-                    {node.type.replace('-', ' ')}
-                  </span>
-                  {node.id !== 'welcome' && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteNode(node.id);
-                      }}
-                      style={{
-                        background: 'rgba(255, 255, 255, 0.2)',
-                        border: 'none',
-                        borderRadius: '50%',
-                        width: '25px',
-                        height: '25px',
-                        cursor: 'pointer',
-                        color: 'white',
-                        fontSize: '12px'
-                      }}
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
-                <input
-                  type="text"
-                  value={node.title}
-                  onChange={(e) => updateNode(node.id, 'title', e.target.value)}
-                  onClick={(e) => e.stopPropagation()}
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    border: 'none',
-                    color: 'white',
-                    fontSize: '1.1rem',
-                    fontWeight: '600',
-                    width: '100%',
-                    marginBottom: '8px',
-                    padding: '5px',
-                    borderRadius: '5px',
-                    outline: 'none'
-                  }}
-                />
-                <textarea
-                  value={node.description}
-                  onChange={(e) => updateNode(node.id, 'description', e.target.value)}
-                  onClick={(e) => e.stopPropagation()}
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    border: 'none',
-                    color: 'white',
-                    fontSize: '0.9rem',
-                    width: '100%',
-                    minHeight: '60px',
-                    padding: '5px',
-                    borderRadius: '5px',
-                    outline: 'none',
-                    resize: 'none'
-                  }}
-                />
-              </div>
-            ))}
+.node-type {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
 
-            {/* Connection Lines */}
-            <svg
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                pointerEvents: 'none',
-                zIndex: 0
-              }}
-            >
-              {/* Welcome to caller types connections */}
-              {nodes.filter(n => n.type === 'caller-type').map(targetNode => {
-                const welcomeNode = nodes.find(n => n.id === 'welcome');
-                if (!welcomeNode) return null;
-                
-                return (
-                  <line
-                    key={`welcome-${targetNode.id}`}
-                    x1={`${welcomeNode.position.x + 10}%`}
-                    y1={welcomeNode.position.y + 100}
-                    x2={`${targetNode.position.x + 10}%`}
-                    y2={targetNode.position.y}
-                    stroke="rgba(102, 126, 234, 0.6)"
-                    strokeWidth="3"
-                    strokeDasharray="5,5"
-                  />
-                );
-              })}
-            </svg>
-          </div>
-        </div>
+.delete-node {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  border-radius: 50%;
+  width: 25px;
+  height: 25px;
+  cursor: pointer;
+  color: white;
+  font-size: 12px;
+}
 
-        {/* Voice Controls & Transcript */}
-        <div style={{
-          flex: '1',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '20px'
-        }}>
-          
-          {/* Voice Controls */}
-          <div style={{
-            background: 'rgba(255, 255, 255, 0.95)',
-            borderRadius: '15px',
-            padding: '20px',
-            textAlign: 'center'
-          }}>
-            <h3 style={{ marginBottom: '20px', color: '#333' }}>Voice Call</h3>
-            
-            <div
-              style={{
-                width: '100px',
-                height: '100px',
-                background: isCallActive 
-                  ? 'linear-gradient(135deg, #ff4757, #c44569)'
-                  : 'linear-gradient(135deg, #5f27cd, #341f97)',
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '2rem',
-                cursor: 'pointer',
-                margin: '0 auto 20px',
-                transition: 'all 0.3s ease',
-                boxShadow: isCallActive 
-                  ? '0 0 30px rgba(255, 71, 87, 0.6)'
-                  : '0 0 30px rgba(95, 39, 205, 0.6)',
-                animation: isCallActive ? 'pulse 1s infinite' : 'none'
-              }}
-              onClick={isCallActive ? stopCall : startCall}
-            >
-              {isCallActive ? '🔴' : '🎤'}
-            </div>
+.node-title {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: white;
+  font-size: 1.1rem;
+  font-weight: 600;
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 5px;
+  border-radius: 5px;
+  outline: none;
+}
 
-            <button
-              onClick={isCallActive ? stopCall : startCall}
-              style={{
-                background: isCallActive 
-                  ? 'linear-gradient(135deg, #ff4757, #c44569)'
-                  : 'linear-gradient(135deg, #5f27cd, #341f97)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '25px',
-                padding: '12px 30px',
-                fontSize: '16px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                marginBottom: '15px',
-                transition: 'all 0.3s ease'
-              }}
-            >
-              {isCallActive ? 'End Call' : 'Start Voice Call'}
-            </button>
+.node-description {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: white;
+  font-size: 0.9rem;
+  width: 100%;
+  min-height: 60px;
+  padding: 5px;
+  border-radius: 5px;
+  outline: none;
+  resize: none;
+}
 
-            <div style={{
-              background: 'rgba(95, 39, 205, 0.1)',
-              borderRadius: '10px',
-              padding: '10px',
-              fontSize: '14px',
-              color: '#333',
-              fontWeight: '500'
-            }}>
-              {callStatus}
-            </div>
-          </div>
+.connections {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
 
-          {/* Transcript */}
-          <div style={{
-            background: 'rgba(255, 255, 255, 0.95)',
-            borderRadius: '15px',
-            padding: '20px',
-            flex: '1',
-            minHeight: '300px'
-          }}>
-            <h3 style={{ marginBottom: '15px', color: '#333' }}>Live Transcript</h3>
-            <div style={{
-              background: 'rgba(0, 0, 0, 0.05)',
-              borderRadius: '10px',
-              padding: '15px',
-              height: '250px',
-              overflowY: 'auto',
-              fontSize: '14px',
-              lineHeight: '1.6',
-              color: '#333'
-            }}>
-              {transcript ? (
-                <div>
-                  {transcript.split('\n\n').map((line, index) => (
-                    <div
-                      key={index}
-                      style={{
-                        marginBottom: '10px',
-                        padding: '8px 12px',
-                        borderRadius: '10px',
-                        background: line.startsWith('🤖 Agent')
-                          ? 'rgba(95, 39, 205, 0.1)'
-                          : 'rgba(26, 188, 156, 0.1)',
-                        border: `1px solid ${line.startsWith('🤖 Agent') ? '#5f27cd' : '#1abc9c'}`
-                      }}
-                    >
-                      {line}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div style={{
-                  color: 'rgba(0, 0, 0, 0.4)',
-                  fontStyle: 'italic',
-                  textAlign: 'center',
-                  marginTop: '50px'
-                }}>
-                  Your conversation transcript will appear here...
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+.voice-controls-transcript {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
 
-      <style jsx>{`
-        @keyframes pulse {
-          0%, 100% {
-            transform: scale(1);
-          }
-          50% {
-            transform: scale(1.05);
-          }
-        }
-      `}</style>
-    </div>
-  );
+.voice-controls {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 15px;
+  padding: 20px;
+  text-align: center;
+}
+
+.voice-controls h3 {
+  margin-bottom: 20px;
+  color: #333;
+}
+
+.call-button {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  cursor: pointer;
+  margin: 0 auto 20px;
+  transition: all 0.3s ease;
+}
+
+.call-button:not(.active) {
+  background: linear-gradient(135deg, #5f27cd, #341f97);
+  box-shadow: 0 0 30px rgba(95, 39, 205, 0.6);
+}
+
+.call-button.active {
+  background: linear-gradient(135deg, #ff4757, #c44569);
+  box-shadow: 0 0 30px rgba(255, 71, 87, 0.6);
+  animation: pulse 1s infinite;
+}
+
+.btn-call {
+  color: white;
+  border: none;
+  border-radius: 25px;
+  padding: 12px 30px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 15px;
+  transition: all 0.3s ease;
+}
+
+.btn-call.start {
+  background: linear-gradient(135deg, #5f27cd, #341f97);
+}
+
+.btn-call.end {
+  background: linear-gradient(135deg, #ff4757, #c44569);
+}
+
+.call-status {
+  background: rgba(95, 39, 205, 0.1);
+  border-radius: 10px;
+  padding: 10px;
+  font-size: 14px;
+  color: #333;
+  font-weight: 500;
+}
+
+.transcript {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 15px;
+  padding: 20px;
+  flex: 1;
+  min-height: 300px;
+}
+
+.transcript h3 {
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.transcript-content {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 10px;
+  padding: 15px;
+  height: 250px;
+  overflow-y: auto;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #333;
+}
+
+.transcript-line {
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  border-radius: 10px;
+}
+
+.transcript-line.agent {
+  background: rgba(95, 39, 205, 0.1);
+  border: 1px solid #5f27cd;
+}
+
+.transcript-line.user {
+  background: rgba(26, 188, 156, 0.1);
+  border: 1px solid #1abc9c;
+}
+
+.transcript-placeholder {
+  color: rgba(0, 0, 0, 0.4);
+  font-style: italic;
+  text-align: center;
+  margin-top: 50px;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
 }
