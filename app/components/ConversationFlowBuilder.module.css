@@ -33,7 +33,9 @@
   background: rgba(255, 255, 255, 0.95);
   border-radius: 15px;
   padding: 20px;
-  min-height: 600px;
+  min-height: 800px; /* Increased from 600px */
+  max-height: 90vh; /* Added max height */
+  overflow-y: auto; /* Added scrolling */
   position: relative;
   background-image: radial-gradient(circle at 25px 25px, rgba(102, 126, 234, 0.1) 2px, transparent 0);
   background-size: 50px 50px;
@@ -44,6 +46,12 @@
   gap: 10px;
   margin-bottom: 20px;
   flex-wrap: wrap;
+  position: sticky; /* Keep toolbar visible when scrolling */
+  top: 0;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 10px 0;
+  border-radius: 10px;
+  z-index: 10;
 }
 
 .btn {
@@ -74,7 +82,7 @@
 
 .nodesContainer {
   position: relative;
-  min-height: 500px;
+  min-height: 700px; /* Increased from 500px for more working space */
 }
 
 .node {
@@ -102,6 +110,11 @@
   background: linear-gradient(135deg, #4facfe, #00f2fe);
 }
 
+/* Added specific styling for 'other' type nodes to ensure blue background */
+.other {
+  background: linear-gradient(135deg, #4facfe, #00f2fe);
+}
+
 .selected {
   box-shadow: 0 0 0 3px rgba(118, 75, 162, 0.5);
   border: 2px solid #764ba2;
@@ -119,6 +132,7 @@
   font-weight: 600;
   text-transform: uppercase;
   opacity: 0.8;
+  color: white; /* Ensure text is white for visibility */
 }
 
 .deleteNode {
@@ -133,29 +147,44 @@
 }
 
 .nodeTitle {
-  background: rgba(255, 255, 255, 0.1);
-  border: none;
+  background: rgba(255, 255, 255, 0.2); /* Increased opacity for better visibility */
+  border: 1px solid rgba(255, 255, 255, 0.3); /* Added border for definition */
   color: white;
   font-size: 1.1rem;
   font-weight: 600;
   width: 100%;
   margin-bottom: 8px;
-  padding: 5px;
+  padding: 8px; /* Increased padding */
   border-radius: 5px;
   outline: none;
 }
 
+.nodeTitle::placeholder {
+  color: rgba(255, 255, 255, 0.7); /* White placeholder text */
+}
+
 .nodeDescription {
-  background: rgba(255, 255, 255, 0.1);
-  border: none;
+  background: rgba(255, 255, 255, 0.2); /* Increased opacity for better visibility */
+  border: 1px solid rgba(255, 255, 255, 0.3); /* Added border for definition */
   color: white;
   font-size: 0.9rem;
   width: 100%;
   min-height: 60px;
-  padding: 5px;
+  padding: 8px; /* Increased padding */
   border-radius: 5px;
   outline: none;
   resize: none;
+}
+
+.nodeDescription::placeholder {
+  color: rgba(255, 255, 255, 0.7); /* White placeholder text */
+}
+
+/* Focus states for better UX */
+.nodeTitle:focus,
+.nodeDescription:focus {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
 }
 
 .connections {
@@ -294,4 +323,23 @@
   50% {
     transform: scale(1.05);
   }
+}
+
+/* Scrollbar styling for webkit browsers */
+.flowCanvas::-webkit-scrollbar {
+  width: 8px;
+}
+
+.flowCanvas::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+}
+
+.flowCanvas::-webkit-scrollbar-thumb {
+  background: rgba(102, 126, 234, 0.5);
+  border-radius: 10px;
+}
+
+.flowCanvas::-webkit-scrollbar-thumb:hover {
+  background: rgba(102, 126, 234, 0.7);
 }
