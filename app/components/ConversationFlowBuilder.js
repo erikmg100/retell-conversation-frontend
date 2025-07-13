@@ -4,15 +4,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { RetellWebClient } from 'retell-client-js-sdk';
 import styles from './ConversationFlowBuilder.module.css';
 
-let Draggable = null;
-
-const loadDraggable = () => {
-  if (typeof window !== 'undefined') {
-    // eslint-disable-next-line global-require
-    Draggable = require('react-draggable').default;
-  }
-  return Draggable;
-};
+// Import Draggable normally instead of dynamic loading
+import Draggable from 'react-draggable';
 
 export default function ConversationFlowBuilder() {
   const [isClient, setIsClient] = useState(false);
@@ -46,7 +39,7 @@ export default function ConversationFlowBuilder() {
       id: 'other',
       type: 'caller-type',
       title: 'Other',
-      description: 'I’m here to help. Could you tell me more about what you need?',
+      description: 'I'm here to help. Could you tell me more about what you need?',
       position: { x: 90, y: 180 },
     },
   ]);
@@ -54,7 +47,6 @@ export default function ConversationFlowBuilder() {
 
   useEffect(() => {
     setIsClient(true);
-    loadDraggable(); // Load Draggable on client side
     const client = new RetellWebClient();
     setRetellWebClient(client);
 
@@ -188,8 +180,13 @@ export default function ConversationFlowBuilder() {
     URL.revokeObjectURL(url);
   }, [nodes]);
 
-  if (!isClient || !Draggable) {
-    return <div className={styles.container} style={{ visibility: 'hidden' }} />; // Fallback on server or during load
+  // Show loading state until client-side rendering is ready
+  if (!isClient) {
+    return (
+      <div className={styles.container}>
+        <div>Loading...</div>
+      </div>
+    );
   }
 
   return (
@@ -220,6 +217,7 @@ export default function ConversationFlowBuilder() {
                 defaultPosition={{ x: node.position.x, y: node.position.y }}
                 onStop={(e, data) => handleNodeDrag(node.id, data)}
                 bounds="parent"
+                nodeRef={React.createRef()} // Add this to fix React 18 compatibility
               >
                 <div
                   className={`${styles.node} ${styles[node.type]} ${selectedNode === node.id ? styles.selected : ''}`}
