@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { RetellWebClient } from 'retell-client-js-sdk';
 import styles from './ConversationFlowBuilder.module.css';
 
-// Import Draggable normally instead of dynamic loading
+// Import Draggable normally - make sure you have the latest version
 import Draggable from 'react-draggable';
 
 export default function ConversationFlowBuilder() {
@@ -44,6 +44,18 @@ export default function ConversationFlowBuilder() {
     },
   ]);
   const [selectedNode, setSelectedNode] = useState(null);
+
+  // Create refs for each draggable node to avoid findDOMNode issues
+  const nodeRefs = useRef({});
+
+  // Initialize refs for existing nodes
+  useEffect(() => {
+    nodes.forEach((node) => {
+      if (!nodeRefs.current[node.id]) {
+        nodeRefs.current[node.id] = React.createRef();
+      }
+    });
+  }, [nodes]);
 
   useEffect(() => {
     setIsClient(true);
@@ -152,18 +164,27 @@ export default function ConversationFlowBuilder() {
   }, []);
 
   const addNode = useCallback((type) => {
+    const newNodeId = `node-${Date.now()}`;
     const newNode = {
-      id: `node-${Date.now()}`,
+      id: newNodeId,
       type,
       title: type === 'caller-type' ? 'New Caller Type' : 'New Response',
       description: 'Enter your message here...',
       position: { x: 50, y: 350 },
     };
+    
+    // Create ref for new node
+    nodeRefs.current[newNodeId] = React.createRef();
+    
     setNodes((prevNodes) => [...prevNodes, newNode]);
   }, []);
 
   const deleteNode = useCallback((nodeId) => {
     if (nodeId === 'welcome') return;
+    
+    // Clean up ref
+    delete nodeRefs.current[nodeId];
+    
     setNodes((prevNodes) => prevNodes.filter((node) => node.id !== nodeId));
     if (selectedNode === nodeId) setSelectedNode(null);
   }, [selectedNode]);
@@ -211,48 +232,56 @@ export default function ConversationFlowBuilder() {
           </div>
 
           <div className={styles.nodesContainer}>
-            {nodes.map((node) => (
-              <Draggable
-                key={node.id}
-                defaultPosition={{ x: node.position.x, y: node.position.y }}
-                onStop={(e, data) => handleNodeDrag(node.id, data)}
-                bounds="parent"
-                nodeRef={React.createRef()} // Add this to fix React 18 compatibility
-              >
-                <div
-                  className={`${styles.node} ${styles[node.type]} ${selectedNode === node.id ? styles.selected : ''}`}
-                  onClick={() => setSelectedNode(node.id)}
+            {nodes.map((node) => {
+              // Ensure each node has a ref
+              if (!nodeRefs.current[node.id]) {
+                nodeRefs.current[node.id] = React.createRef();
+              }
+
+              return (
+                <Draggable
+                  key={node.id}
+                  defaultPosition={{ x: node.position.x, y: node.position.y }}
+                  onStop={(e, data) => handleNodeDrag(node.id, data)}
+                  bounds="parent"
+                  nodeRef={nodeRefs.current[node.id]}
                 >
-                  <div className={styles.nodeHeader}>
-                    <span className={styles.nodeType}>{node.type.replace('-', ' ')}</span>
-                    {node.id !== 'welcome' && (
-                      <button
-                        className={styles.deleteNode}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteNode(node.id);
-                        }}
-                      >
-                        ×
-                      </button>
-                    )}
+                  <div
+                    ref={nodeRefs.current[node.id]}
+                    className={`${styles.node} ${styles[node.type]} ${selectedNode === node.id ? styles.selected : ''}`}
+                    onClick={() => setSelectedNode(node.id)}
+                  >
+                    <div className={styles.nodeHeader}>
+                      <span className={styles.nodeType}>{node.type.replace('-', ' ')}</span>
+                      {node.id !== 'welcome' && (
+                        <button
+                          className={styles.deleteNode}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteNode(node.id);
+                          }}
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      type="text"
+                      value={node.title}
+                      onChange={(e) => updateNode(node.id, 'title', e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      className={styles.nodeTitle}
+                    />
+                    <textarea
+                      value={node.description}
+                      onChange={(e) => updateNode(node.id, 'description', e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      className={styles.nodeDescription}
+                    />
                   </div>
-                  <input
-                    type="text"
-                    value={node.title}
-                    onChange={(e) => updateNode(node.id, 'title', e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    className={styles.nodeTitle}
-                  />
-                  <textarea
-                    value={node.description}
-                    onChange={(e) => updateNode(node.id, 'description', e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    className={styles.nodeDescription}
-                  />
-                </div>
-              </Draggable>
-            ))}
+                </Draggable>
+              );
+            })}
 
             <svg className={styles.connections}>
               {nodes
