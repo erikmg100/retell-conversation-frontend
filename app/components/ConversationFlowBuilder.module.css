@@ -1,345 +1,376 @@
-.container {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 20px;
-}
+'use client';
 
-.header {
-  text-align: center;
-  margin-bottom: 30px;
-  color: white;
-}
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { RetellWebClient } from 'retell-client-js-sdk';
+import styles from './ConversationFlowBuilder.module.css';
 
-.header h1 {
-  font-size: 2.5rem;
-  font-weight: 700;
-  margin-bottom: 10px;
-}
+// Import Draggable normally - make sure you have the latest version
+import Draggable from 'react-draggable';
 
-.header p {
-  font-size: 1.1rem;
-  opacity: 0.9;
-}
+export default function ConversationFlowBuilder() {
+  const [isClient, setIsClient] = useState(false);
+  const [isCallActive, setIsCallActive] = useState(false);
+  const [transcript, setTranscript] = useState('');
+  const [callStatus, setCallStatus] = useState('Ready to start voice call');
+  const [retellWebClient, setRetellWebClient] = useState(null);
+  const [nodes, setNodes] = useState([
+    {
+      id: 'welcome',
+      type: 'welcome',
+      title: 'Welcome Message',
+      description: 'Hello! How can we help you today?',
+      position: { x: 400, y: 50 }, // Centered position
+    },
+    {
+      id: 'new-caller',
+      type: 'caller-type',
+      title: 'New Caller',
+      description: 'I see you are a new caller. Let me help you get started.',
+      position: { x: 100, y: 300 }, // More spread out
+    },
+    {
+      id: 'existing-client',
+      type: 'caller-type',
+      title: 'Existing Client',
+      description: 'Welcome back! How can I help you today?',
+      position: { x: 400, y: 300 }, // Center position
+    },
+    {
+      id: 'other',
+      type: 'caller-type',
+      title: 'Other',
+      description: 'I am here to help. Could you tell me more about what you need?',
+      position: { x: 700, y: 300 }, // More spread out
+    },
+  ]);
+  const [selectedNode, setSelectedNode] = useState(null);
 
-.mainContent {
-  display: flex;
-  gap: 30px;
-  max-width: 1400px;
-  margin: 0 auto;
-}
+  // Create refs for each draggable node to avoid findDOMNode issues
+  const nodeRefs = useRef({});
 
-.flowCanvas {
-  flex: 2;
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 15px;
-  padding: 20px;
-  min-height: 800px; /* Increased from 600px */
-  max-height: 90vh; /* Added max height */
-  overflow-y: auto; /* Added scrolling */
-  position: relative;
-  background-image: radial-gradient(circle at 25px 25px, rgba(102, 126, 234, 0.1) 2px, transparent 0);
-  background-size: 50px 50px;
-}
+  // Initialize refs for existing nodes
+  useEffect(() => {
+    nodes.forEach((node) => {
+      if (!nodeRefs.current[node.id]) {
+        nodeRefs.current[node.id] = React.createRef();
+      }
+    });
+  }, [nodes]);
 
-.toolbar {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-  position: sticky; /* Keep toolbar visible when scrolling */
-  top: 0;
-  background: rgba(255, 255, 255, 0.95);
-  padding: 10px 0;
-  border-radius: 10px;
-  z-index: 10;
-}
+  useEffect(() => {
+    setIsClient(true);
+    const client = new RetellWebClient();
+    setRetellWebClient(client);
 
-.btn {
-  border: none;
-  border-radius: 10px;
-  padding: 12px 20px;
-  cursor: pointer;
-  font-weight: 600;
-  color: white;
-  transition: transform 0.2s ease;
-}
+    client.on('call_started', () => {
+      console.log('call started');
+      setCallStatus('Call active - Speak now!');
+      setIsCallActive(true);
+    });
 
-.btn:hover {
-  transform: translateY(-2px);
-}
+    client.on('call_ended', () => {
+      console.log('call ended');
+      setCallStatus('Call ended');
+      setIsCallActive(false);
+    });
 
-.btnCallerType {
-  background: linear-gradient(135deg, #f093fb, #f5576c);
-}
+    client.on('update', (update) => {
+      console.log('Received update:', update);
+      if (update.transcript) {
+        const transcriptText = Array.isArray(update.transcript)
+          ? update.transcript
+              .map((item) => `${item.role === 'agent' ? '🤖 Agent' : '👤 You'}: ${item.content}`)
+              .join('\n\n')
+          : update.transcript;
+        setTranscript(transcriptText);
+      }
+    });
 
-.btnResponse {
-  background: linear-gradient(135deg, #4facfe, #00f2fe);
-}
+    client.on('error', (error) => {
+      console.error('Retell error:', error);
+      setCallStatus(`Error: ${error.message || 'Unknown error'}`);
+    });
 
-.btnExport {
-  background: linear-gradient(135deg, #667eea, #764ba2);
-}
+    return () => client.removeAllListeners();
+  }, []);
 
-.nodesContainer {
-  position: relative;
-  min-height: 700px; /* Increased from 500px for more working space */
-}
+  const startCall = useCallback(async () => {
+    try {
+      setCallStatus('Requesting microphone access...');
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((track) => track.stop());
 
-.node {
-  position: absolute;
-  border-radius: 15px;
-  padding: 20px;
-  min-width: 200px;
-  max-width: 300px;
-  cursor: move;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-  transition: all 0.3s ease;
-  color: white;
-  z-index: 1;
-}
+      setCallStatus('Creating call...');
+      const flowData = {
+        nodes,
+        connections: [{ parent: 'welcome', children: ['new-caller', 'existing-client', 'other'] }],
+      };
 
-.welcome {
-  background: linear-gradient(135deg, #667eea, #764ba2);
-}
+      const response = await fetch('https://retell-flow-backend.vercel.app/create-web-call', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ flowData }),
+      });
 
-.callerType {
-  background: linear-gradient(135deg, #f093fb, #f5576c);
-}
+      const data = await response.json();
+      if (!data.success || !data.access_token) {
+        throw new Error(data.error || 'Failed to get access token');
+      }
 
-.response {
-  background: linear-gradient(135deg, #4facfe, #00f2fe);
-}
+      if (retellWebClient) {
+        await retellWebClient.startCall({
+          accessToken: data.access_token,
+          sampleRate: 24000,
+          captureDeviceId: 'default',
+          playbackDeviceId: 'default',
+        });
+      }
 
-/* Added specific styling for 'other' type nodes to ensure blue background */
-.other {
-  background: linear-gradient(135deg, #4facfe, #00f2fe);
-}
+      setCallStatus('Call starting...');
+    } catch (error) {
+      console.error('Error starting call:', error);
+      setCallStatus(
+        error.name === 'NotAllowedError'
+          ? 'Microphone access denied. Please allow microphone access and try again.'
+          : `Error: ${error.message}`
+      );
+    }
+  }, [retellWebClient, nodes]);
 
-.selected {
-  box-shadow: 0 0 0 3px rgba(118, 75, 162, 0.5);
-  border: 2px solid #764ba2;
-}
+  const stopCall = useCallback(async () => {
+    try {
+      if (retellWebClient) {
+        await retellWebClient.stopCall();
+      }
+      setCallStatus('Call stopped');
+      setIsCallActive(false);
+    } catch (error) {
+      console.error('Error stopping call:', error);
+    }
+  }, [retellWebClient]);
 
-.nodeHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 15px;
-}
+  const updateNode = useCallback((nodeId, field, value) => {
+    setNodes((prevNodes) =>
+      prevNodes.map((node) => (node.id === nodeId ? { ...node, [field]: value } : node))
+    );
+  }, []);
 
-.nodeType {
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  opacity: 0.8;
-  color: white; /* Ensure text is white for visibility */
-}
+  const handleNodeDrag = useCallback((nodeId, data) => {
+    setNodes((prevNodes) =>
+      prevNodes.map((node) =>
+        node.id === nodeId ? { ...node, position: { x: data.x, y: data.y } } : node
+      )
+    );
+  }, []);
 
-.deleteNode {
-  background: rgba(255, 255, 255, 0.2);
-  border: none;
-  border-radius: 50%;
-  width: 25px;
-  height: 25px;
-  cursor: pointer;
-  color: white;
-  font-size: 12px;
-}
+  const addNode = useCallback((type) => {
+    const newNodeId = `node-${Date.now()}`;
+    const newNode = {
+      id: newNodeId,
+      type,
+      title: type === 'caller-type' ? 'New Caller Type' : 'New Response',
+      description: 'Enter your message here...',
+      position: { x: 200 + Math.random() * 400, y: 500 + Math.random() * 200 }, // Random position in lower area
+    };
+    
+    // Create ref for new node
+    nodeRefs.current[newNodeId] = React.createRef();
+    
+    setNodes((prevNodes) => [...prevNodes, newNode]);
+  }, []);
 
-.nodeTitle {
-  background: rgba(255, 255, 255, 0.2); /* Increased opacity for better visibility */
-  border: 1px solid rgba(255, 255, 255, 0.3); /* Added border for definition */
-  color: white;
-  font-size: 1.1rem;
-  font-weight: 600;
-  width: 100%;
-  margin-bottom: 8px;
-  padding: 8px; /* Increased padding */
-  border-radius: 5px;
-  outline: none;
-}
+  const deleteNode = useCallback((nodeId) => {
+    if (nodeId === 'welcome') return;
+    
+    // Clean up ref
+    delete nodeRefs.current[nodeId];
+    
+    setNodes((prevNodes) => prevNodes.filter((node) => node.id !== nodeId));
+    if (selectedNode === nodeId) setSelectedNode(null);
+  }, [selectedNode]);
 
-.nodeTitle::placeholder {
-  color: rgba(255, 255, 255, 0.7); /* White placeholder text */
-}
+  const exportFlow = useCallback(() => {
+    const flowData = { nodes, connections: [] };
+    const dataStr = JSON.stringify(flowData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'conversation-flow.json';
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [nodes]);
 
-.nodeDescription {
-  background: rgba(255, 255, 255, 0.2); /* Increased opacity for better visibility */
-  border: 1px solid rgba(255, 255, 255, 0.3); /* Added border for definition */
-  color: white;
-  font-size: 0.9rem;
-  width: 100%;
-  min-height: 60px;
-  padding: 8px; /* Increased padding */
-  border-radius: 5px;
-  outline: none;
-  resize: none;
-}
-
-.nodeDescription::placeholder {
-  color: rgba(255, 255, 255, 0.7); /* White placeholder text */
-}
-
-/* Focus states for better UX */
-.nodeTitle:focus,
-.nodeDescription:focus {
-  background: rgba(255, 255, 255, 0.3);
-  border-color: rgba(255, 255, 255, 0.5);
-}
-
-.connections {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.voiceControlsTranscript {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.voiceControls {
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 15px;
-  padding: 20px;
-  text-align: center;
-}
-
-.voiceControls h3 {
-  margin-bottom: 20px;
-  color: #333;
-}
-
-.callButton {
-  width: 100px;
-  height: 100px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 2rem;
-  cursor: pointer;
-  margin: 0 auto 20px;
-  transition: all 0.3s ease;
-}
-
-.callButton:not(.active) {
-  background: linear-gradient(135deg, #5f27cd, #341f97);
-  box-shadow: 0 0 30px rgba(95, 39, 205, 0.6);
-}
-
-.callButton.active {
-  background: linear-gradient(135deg, #ff4757, #c44569);
-  box-shadow: 0 0 30px rgba(255, 71, 87, 0.6);
-  animation: pulse 1s infinite;
-}
-
-.btnCall {
-  color: white;
-  border: none;
-  border-radius: 25px;
-  padding: 12px 30px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  margin-bottom: 15px;
-  transition: all 0.3s ease;
-}
-
-.start {
-  background: linear-gradient(135deg, #5f27cd, #341f97);
-}
-
-.end {
-  background: linear-gradient(135deg, #ff4757, #c44569);
-}
-
-.callStatus {
-  background: rgba(95, 39, 205, 0.1);
-  border-radius: 10px;
-  padding: 10px;
-  font-size: 14px;
-  color: #333;
-  font-weight: 500;
-}
-
-.transcript {
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 15px;
-  padding: 20px;
-  flex: 1;
-  min-height: 300px;
-}
-
-.transcript h3 {
-  margin-bottom: 15px;
-  color: #333;
-}
-
-.transcriptContent {
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: 10px;
-  padding: 15px;
-  height: 250px;
-  overflow-y: auto;
-  font-size: 14px;
-  line-height: 1.6;
-  color: #333;
-}
-
-.transcriptLine {
-  margin-bottom: 10px;
-  padding: 8px 12px;
-  border-radius: 10px;
-}
-
-.agent {
-  background: rgba(95, 39, 205, 0.1);
-  border: 1px solid #5f27cd;
-}
-
-.user {
-  background: rgba(26, 188, 156, 0.1);
-  border: 1px solid #1abc9c;
-}
-
-.transcriptPlaceholder {
-  color: rgba(0, 0, 0, 0.4);
-  font-style: italic;
-  text-align: center;
-  margin-top: 50px;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    transform: scale(1);
+  // Show loading state until client-side rendering is ready
+  if (!isClient) {
+    return (
+      <div className={styles.container}>
+        <div>Loading...</div>
+      </div>
+    );
   }
-  50% {
-    transform: scale(1.05);
-  }
-}
 
-/* Scrollbar styling for webkit browsers */
-.flowCanvas::-webkit-scrollbar {
-  width: 8px;
-}
+  return (
+    <div className={styles.container}>
+      <header className={styles.header}>
+        <h1>Conversation Flow Builder</h1>
+        <p>Design your conversational workflow with voice AI integration</p>
+      </header>
 
-.flowCanvas::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.1);
-  border-radius: 10px;
-}
+      <div className={styles.mainContent}>
+        <div className={styles.flowCanvas}>
+          <div className={styles.toolbar}>
+            <button onClick={() => addNode('caller-type')} className={`${styles.btn} ${styles.btnCallerType}`}>
+              + Add Caller Type
+            </button>
+            <button onClick={() => addNode('response')} className={`${styles.btn} ${styles.btnResponse}`}>
+              + Add Response
+            </button>
+            <button onClick={exportFlow} className={`${styles.btn} ${styles.btnExport}`}>
+              📥 Export
+            </button>
+          </div>
 
-.flowCanvas::-webkit-scrollbar-thumb {
-  background: rgba(102, 126, 234, 0.5);
-  border-radius: 10px;
-}
+          <div className={styles.nodesContainer}>
+            {nodes.map((node) => {
+              // Ensure each node has a ref
+              if (!nodeRefs.current[node.id]) {
+                nodeRefs.current[node.id] = React.createRef();
+              }
 
-.flowCanvas::-webkit-scrollbar-thumb:hover {
-  background: rgba(102, 126, 234, 0.7);
+              return (
+                <Draggable
+                  key={node.id}
+                  defaultPosition={{ x: node.position.x, y: node.position.y }}
+                  onStop={(e, data) => handleNodeDrag(node.id, data)}
+                  bounds="parent"
+                  nodeRef={nodeRefs.current[node.id]}
+                >
+                  <div
+                    ref={nodeRefs.current[node.id]}
+                    className={`${styles.node} ${styles[node.type]} ${selectedNode === node.id ? styles.selected : ''}`}
+                    onClick={() => setSelectedNode(node.id)}
+                  >
+                    <div className={styles.nodeHeader}>
+                      <span className={styles.nodeType}>{node.type.replace('-', ' ')}</span>
+                      {node.id !== 'welcome' && (
+                        <button
+                          className={styles.deleteNode}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteNode(node.id);
+                          }}
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      type="text"
+                      value={node.title}
+                      onChange={(e) => updateNode(node.id, 'title', e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      className={styles.nodeTitle}
+                    />
+                    <textarea
+                      value={node.description}
+                      onChange={(e) => updateNode(node.id, 'description', e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      className={styles.nodeDescription}
+                    />
+                    
+                    {/* Add waiting indicator for non-welcome nodes */}
+                    {node.id !== 'welcome' && (
+                      <div className={styles.waitingIndicator}>
+                        <span className={styles.waitingIcon}>⏳</span>
+                        <span>Waiting for response</span>
+                      </div>
+                    )}
+                  </div>
+                </Draggable>
+              );
+            })}
+
+            <svg className={styles.connections}>
+              {nodes
+                .filter((n) => n.type === 'caller-type')
+                .map((targetNode) => {
+                  const welcomeNode = nodes.find((n) => n.id === 'welcome');
+                  if (!welcomeNode) return null;
+                  return (
+                    <line
+                      key={`welcome-${targetNode.id}`}
+                      x1={welcomeNode.position.x + 150}
+                      y1={welcomeNode.position.y + 120} // Adjusted for better connection point
+                      x2={targetNode.position.x + 150}
+                      y2={targetNode.position.y}
+                      stroke="rgba(102, 126, 234, 0.8)" // Made more visible
+                      strokeWidth="3"
+                      strokeDasharray="8,4" // Better dash pattern
+                      markerEnd="url(#arrowhead)" // Add arrow marker
+                    />
+                  );
+                })}
+              
+              {/* Arrow marker definition */}
+              <defs>
+                <marker
+                  id="arrowhead"
+                  markerWidth="10"
+                  markerHeight="7"
+                  refX="9"
+                  refY="3.5"
+                  orient="auto"
+                >
+                  <polygon
+                    points="0 0, 10 3.5, 0 7"
+                    fill="rgba(102, 126, 234, 0.8)"
+                  />
+                </marker>
+              </defs>
+            </svg>
+          </div>
+        </div>
+
+        <div className={styles.voiceControlsTranscript}>
+          <div className={styles.voiceControls}>
+            <h3>Voice Call</h3>
+            <div
+              className={`${styles.callButton} ${isCallActive ? styles.active : ''}`}
+              onClick={isCallActive ? stopCall : startCall}
+            >
+              {isCallActive ? '🔴' : '🎤'}
+            </div>
+            <button
+              onClick={isCallActive ? stopCall : startCall}
+              className={`${styles.btn} ${styles.btnCall} ${isCallActive ? styles.end : styles.start}`}
+            >
+              {isCallActive ? 'End Call' : 'Start Voice Call'}
+            </button>
+            <div className={styles.callStatus}>{callStatus}</div>
+          </div>
+
+          <div className={styles.transcript}>
+            <h3>Live Transcript</h3>
+            <div className={styles.transcriptContent}>
+              {transcript ? (
+                transcript.split('\n\n').map((line, index) => (
+                  <div
+                    key={index}
+                    className={`${styles.transcriptLine} ${line.startsWith('🤖 Agent') ? styles.agent : styles.user}`}
+                  >
+                    {line}
+                  </div>
+                ))
+              ) : (
+                <div className={styles.transcriptPlaceholder}>
+                  Your conversation transcript will appear here...
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
