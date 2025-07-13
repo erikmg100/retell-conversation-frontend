@@ -186,13 +186,13 @@ export default function ConversationFlowBuilder() {
       <div className={styles.mainContent}>
         <div className={styles.flowCanvas}>
           <div className={styles.toolbar}>
-            <button onClick={() => addNode('caller-type')} className={styles.btn + ' ' + styles.btnCallerType}>
+            <button onClick={() => addNode('caller-type')} className={`${styles.btn} ${styles.btnCallerType}`}>
               + Add Caller Type
             </button>
-            <button onClick={() => addNode('response')} className={styles.btn + ' ' + styles.btnResponse}>
+            <button onClick={() => addNode('response')} className={`${styles.btn} ${styles.btnResponse}`}>
               + Add Response
             </button>
-            <button onClick={exportFlow} className={styles.btn + ' ' + styles.btnExport}>
+            <button onClick={exportFlow} className={`${styles.btn} ${styles.btnExport}`}>
               📥 Export
             </button>
           </div>
