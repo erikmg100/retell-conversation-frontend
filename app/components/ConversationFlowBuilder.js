@@ -1,23 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { RetellWebClient } from 'retell-client-js-sdk';
 import styles from './ConversationFlowBuilder.module.css';
+import dynamic from 'next/dynamic';
 
-const DraggableComponent = ({ children, ...props }) => {
-  const [isMounted, setIsMounted] = useState(false);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    setIsMounted(true);
-    return () => setIsMounted(false);
-  }, []);
-
-  if (!isMounted) return <div ref={ref}>{children}</div>;
-
-  const Draggable = require('react-draggable').default;
-  return <Draggable {...props}>{children}</Draggable>;
-};
+const Draggable = dynamic(() => import('react-draggable').then((mod) => mod.default), {
+  ssr: false, // Disable server-side rendering for this component
+});
 
 export default function ConversationFlowBuilder() {
   const [isCallActive, setIsCallActive] = useState(false);
@@ -213,7 +203,7 @@ export default function ConversationFlowBuilder() {
 
           <div className={styles.nodesContainer}>
             {nodes.map((node) => (
-              <DraggableComponent
+              <Draggable
                 key={node.id}
                 defaultPosition={{ x: node.position.x, y: node.position.y }}
                 onStop={(e, data) => handleNodeDrag(node.id, data)}
@@ -251,7 +241,7 @@ export default function ConversationFlowBuilder() {
                     className={styles.nodeDescription}
                   />
                 </div>
-              </DraggableComponent>
+              </Draggable>
             ))}
 
             <svg className={styles.connections}>
