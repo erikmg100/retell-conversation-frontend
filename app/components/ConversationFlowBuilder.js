@@ -1,15 +1,17 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { RetellWebClient } from 'retell-client-js-sdk';
 import styles from './ConversationFlowBuilder.module.css';
 import dynamic from 'next/dynamic';
 
 const Draggable = dynamic(() => import('react-draggable').then((mod) => mod.default), {
-  ssr: false, // Disable server-side rendering for this component
+  ssr: false, // Ensure no server-side rendering
+  loading: () => <div style={{ visibility: 'hidden' }} />, // Fallback during load
 });
 
 export default function ConversationFlowBuilder() {
+  const [isClient, setIsClient] = useState(false);
   const [isCallActive, setIsCallActive] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [callStatus, setCallStatus] = useState('Ready to start voice call');
@@ -47,6 +49,7 @@ export default function ConversationFlowBuilder() {
   const [selectedNode, setSelectedNode] = useState(null);
 
   useEffect(() => {
+    setIsClient(true); // Set to true only on client side
     const client = new RetellWebClient();
     setRetellWebClient(client);
 
@@ -179,6 +182,10 @@ export default function ConversationFlowBuilder() {
     link.click();
     URL.revokeObjectURL(url);
   }, [nodes]);
+
+  if (!isClient) {
+    return null; // Render nothing on the server
+  }
 
   return (
     <div className={styles.container}>
