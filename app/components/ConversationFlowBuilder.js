@@ -25,7 +25,7 @@ export default function ConversationFlowBuilder() {
       id: 'new-caller',
       type: 'caller-type',
       title: 'New Caller',
-      description: 'I see you\'re a new caller. Let me help you get started.',
+      description: 'I see you are a new caller. Let me help you get started.',
       position: { x: 10, y: 180 },
     },
     {
@@ -39,7 +39,7 @@ export default function ConversationFlowBuilder() {
       id: 'other',
       type: 'caller-type',
       title: 'Other',
-      description: 'I'm here to help. Could you tell me more about what you need?',
+      description: 'I am here to help. Could you tell me more about what you need?',
       position: { x: 90, y: 180 },
     },
   ]);
